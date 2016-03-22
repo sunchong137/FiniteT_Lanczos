@@ -17,9 +17,8 @@ dens = 0.01
 Nloop = 10000
 
 def gen_mat(L = N, d = dens):
-"""Generate a sparse symmetry matrix. This will not really be used... Just for
-    the test of the program
-"""
+    """Generate a sparse symmetry matrix. This will not really be used... Just for the test of the program
+    """
     n = int(L ** 2 * d)
     mat = np.empty((n, 3)) 
     for i in range(n//2):
@@ -48,6 +47,7 @@ def Lanczos(mat, n = N, m = M):
     """
     a, b = [], [] # tri diagonal vectors of H
     v0 = np.random.randn(n)
+    v0 = v0/np.linalg.norm(v0)
     vn = v0.copy()
     a.append(vec_mat_vec(mat, v0))
     v1, v2 = [], []
@@ -56,7 +56,7 @@ def Lanczos(mat, n = N, m = M):
     b.append(np.linalg.norm(v1))
     v1 = v1 / b[0]
     
-    for i in range(m - 2):
+    for i in range(1, m - 1):
         a.append(vec_mat_vec(mat, v1))
         v2 = mat_vec(mat, v1) - b[i - 1] * v0 - a[i] * v1
         b.append(np.linalg.norm(v2))
@@ -74,9 +74,9 @@ def Tri_diag(a, b):
     return e, w
 
 def FT_Lanczos(H, A, Beta, n = N, m = M):
-    r"""Calculate the canonical ensemble average of A with finite temperature Lanczos algorithm
-    Suppose A is also a sparse matrix, usually A is just H.
-    Here c is an array of <n|\phi_j>, d is an array of <\phi_j|A|n>
+    r"""Calculate the canonical ensemble average of $A$ with finite temperature Lanczos algorithm
+    Suppose $A$ is also a sparse matrix, usually $A$ is just $H$.
+    Here c is an array of $\langle r|\phi_j\rangle$, d is an array of $\langle\phi_j|A|r\rangle$
     """
 
     av_A, av_Z = 0., 0. # <A> * Z and Z
@@ -84,6 +84,7 @@ def FT_Lanczos(H, A, Beta, n = N, m = M):
         a, b = [], []
         c, d = [], []
         v0 = np.random.randn(n)
+        v0 = v0/np.linalg.norm(v0)
         vn = v0.copy()
         Hv = mat_vec(H, v0)
         Av = mat_vec(A, v0) # I didn't mean it...I'm pure and inocent
@@ -98,7 +99,7 @@ def FT_Lanczos(H, A, Beta, n = N, m = M):
         c.append(vn.dot(v1))
         d.append(v1.dot(Av))
 
-        for i in range(m - 2):
+        for i in range(1, m - 1):
             v2 = mat_vec(H, v1) - b[i - 1] * v0 - a[i] * v1
             b.append(np.linalg.norm(v2))
             v2 = v2/b[i]
@@ -113,12 +114,103 @@ def FT_Lanczos(H, A, Beta, n = N, m = M):
         d = np.asarray(d)
         eps, phi = Tri_diag(a, b)
         eps = -Beta * np.exp(eps)
+
         for i in range(m):
             av_A += eps[i] * c.dot(phi[i, :]) * d.dot(phi[i, :])
             av_Z += eps[i] * c.dot(phi[i, :]) ** 2
     av_A = av_A/av_Z
     return av_A
-# TODO def LT_Lanczos():
+
+def LT_Lanczos(H, A, Beta, n = N, m = M):
+    r"""Calculate the canonical ensemble average of $A$ with low temperature Lanczos algorithm.
+    Suppose $A$ is also a sparse matrix.
+   Here c is an array of $\langle r|\phi_j\rangle$, D is an 2D array of $\langle \phi_j|A|\phi_k\rangle$
+    If $A$ is not tridiagonal in the trial basis, we need to store the whole matrix.
+    we only store the lower triangle values of $A$.
+    """
+    av_A, av_Z = 0., 0.
+    for cnt in range(Nloop):
+        a, b, c = [], [], []
+        D = np.zeros((m, m))
+        v0 = np.random.randn(n)
+        v0 = v0/np.linalg.norm(v0)
+        vn = v0.copy()
+        Hv = mat_vec(H, v0)
+        Av = np.zeros((m, n)) # Unfavorable procedure
+        a.append(vec_mat_vec(H, v0))
+        c.append(vn.dot(v0))
+        Av[0, :] = mat_vec(A, v0)
+        v1 = Hv - a[0] * v0
+        b.append(np.linalg.norm(v1))
+        v1 = v1/b[0]
+        a.append(vec_mat_vec(H, v1))
+        c.append(vn.dot(v1))
+        Av[1, :] = mat_vec(A, v1)
+        D[0, 0] = v0.dot(Av[0, :])
+        D[1, 0] = v1.dot(Av[0, :])
+        D[1, 1] = v1.dot(Av[1, :])
+        
+        for i in  range(1, m - 1):
+            v2 = mat_vec(H, v1) - b[i - 1] * v0 - a[i] * v1
+            b.append(np.linalg.norm(v2))
+            v2 = v2/b[i]
+            a.append(mat_vec_mat(H, v2))
+            c.append(vn.dot(v2))
+            Av[i + 1, :] = mat_vec(A, v2)
+            for j in range(i + 2):
+                D[i + 2, j] = v2.dot(Av[j, :])
+            v0 = v1.copy()
+            v1 = v2.copy()
+        a, b, c = np.asarray(a), np.asarray(b), np.asarray(c)
+        eps, phi = Tri_diag(a, b)
+        eps = -Beta * np.exp(eps) / 2
+        for i in range(m):
+            for j in range(m):
+                av_A += eps[i] * eps[j] * c.dot(phi[i, :]) * D[i, j] * phi[j, :].dot(c)
+            av_Z += eps[i] * 2 * c.dot(phi[i, :]) * phi[i, :].dot(c)
+
+    av_A = av_A/av_Z
+    return av_A
+            
+
+def FT_Lanczos_E(H, Beta, n = N, m = M):
+    r"""Calculate the energy with low temperature Lanczos. Simpler than
+    LT_Lanczos because $H$ is tridiagonal in $|\phi\rangle$.
+    """
+    av_E, av_Z = 0., 0.
+    for cnt in range(Nloop):
+        a, b, c = [], [], []
+        v0 = np.random.randn(n)
+        v0 = v0/np.linalg.norm(v0)
+        vn = v0.copy()
+        a.append(vec_mat_vec(H, v0))
+        c.append(vn.dot(v0))
+        v1 = mat_vec(H, v0) - a[0] * v0
+        b.append(np.linalg.norm(v1))
+        v1 = v1/b[0]
+        a.append(vec_mat_vec(H, v1))
+        c.append(vn.dot(v1))
+
+        for i in range(1, m-1):
+            v2 = mat_vec(H, v1) - b[i - 1] * v0 - a[i] * v1
+            b.append(np.linalg.norm(v2))
+            v2 = v2/b[i]
+            a.append(mat_vec_mat(H, v2))
+            c.append(vn.dot(v2))
+
+            v0 = v1.copy()
+            v1 = v2.copy()
+        a, b, c = np.asarray(a), np.asarray(b), np.asarray(c)
+        eps, phi = Tri_diag(a, b)
+        exp_eps = -Beta * np.exp(eps)
+        for i in range(m):
+            av_E += exp_eps[i] * eps * c.dot(phi[i, :]) * phi[i, :].dot(c)
+            av_Z += exp_eps[i] * c.dot(phi[i, :]) * phi[i, :].dot(c)
+
+        av_E = av_E/av_Z
+        return av_E
+
+
 
 if __name__ == "__main__":
     print "Hi, This is the main function:P"
