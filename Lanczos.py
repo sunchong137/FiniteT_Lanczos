@@ -13,12 +13,12 @@ import math
 import numpy.linalg as nl
 import random
 
-N = 10000
+N = 1000
 M = 60
 dens = 0.0001
 Minb = 10e-5
 MinM = 10
-Nloop = 100
+Nloop = 10
 
 def gen_mat(L = N, d = dens):
     """Generate a sparse symmetry matrix. This will not really be used... Just for the test of the program
@@ -113,6 +113,7 @@ def Tri_diag(a, b):
     e, w = nl.eigh(mat)
     return e, w
 
+#@profile
 def FT_Lanczos(H, A, Beta, n = N, m = M):
     r"""Calculate the canonical ensemble average of $A$ with finite temperature Lanczos algorithm
     Suppose $A$ is also a sparse matrix, usually $A$ is just $H$.
