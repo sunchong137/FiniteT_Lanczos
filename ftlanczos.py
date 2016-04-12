@@ -88,6 +88,7 @@ def ftlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=30, kB=1):
     while cnt > 0:
         v0 = vecgen()
         etmp = ftlan_E1c(hop, v0, T, m, Min_b, Min_m, kB)
+#       print cnt, etmp
         if etmp==0:
             continue
         E += etmp
@@ -96,7 +97,7 @@ def ftlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=30, kB=1):
     E = E/float(nsamp)
     return E
 
-def ftlan_rdm1s1c(qud, hop, v0, T, m=60, Min_b=10e-5, Min_m=30, kB=1, norm=np.linalg.norm):
+def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=30, kB=1, norm=np.linalg.norm):
     r'''1 step lanczos
     return the 1st order reduced density matrix
     at finite temperature.
@@ -113,7 +114,9 @@ def ftlan_rdm1s1c(qud, hop, v0, T, m=60, Min_b=10e-5, Min_m=30, kB=1, norm=np.li
     return:
         RDMs of spin a and b
     '''
-    rdma, rdmb = qud(v0, v0)*0. #so we don't need norb
+#    rdma, rdmb = qud(v0, v0)*0. #so we don't need norb
+    beta = 1./(kB*T)
+    rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb)) #FIXME the dimension may be wrong
     Z = 0.
     a, b = [], []
     krylov = []
@@ -123,13 +126,13 @@ def ftlan_rdm1s1c(qud, hop, v0, T, m=60, Min_b=10e-5, Min_m=30, kB=1, norm=np.li
     a.append(v0.dot(Hv))
     v1=Hv - a[0]*v0
     b.append(norm(v1))
-    if b[0] < Minb:
+    if b[0] < Min_b:
         return 0, 0
     v1 = v1/b[0]
     Hv = hop(v1)
     a.append(v1.dot(Hv))
     krylov.append(v1)
-    for i in range(1, m-1):
+    for i in range(1, int(m-1)):
         v2 = Hv - b[i-1]*v0-a[i]*v1
         b.append(norm(v2))
         if abs(b[i])<Min_b:
@@ -150,26 +153,29 @@ def ftlan_rdm1s1c(qud, hop, v0, T, m=60, Min_b=10e-5, Min_m=30, kB=1, norm=np.li
     coef = np.exp(-beta*eps/2.)*phi[0, :]
     eps = np.exp(-beta*eps)
     for i in range(len(eps)):
+        Z += eps[i]*phi[0, i]**2.
+    for i in range(len(eps)):
         for j in range(len(eps)):
             for cnt1 in range(m):
                 for cnt2 in range(m):
-                    tmpa, tmpb = coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*qud(krylov[cnt1, :], krylov[cnt2,:])
+                    tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
+                    tmpa = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpa
+                    tmpb = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpb
                     rdma += tmpa
                     rdmb += tmpb
 
-        Z += eps[i]*phi[0, i]**2.
-
-    rdma = rdma/Z
-    rdmb = rdmb/Z
+    rdma = rdma
+    rdmb = rdmb
     return rdma, rdmb
 
-def ftlan_rdm1s(qud, hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=30, kB=1):
-    v0 = vecgen()
-    rdma, rdmb = qud(v0, v0)*0. # can use np.zeros((norb, norb))
+def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=3, nsamp=1, Min_b=10e-10, Min_m=30, kB=1):
+#    v0 = vecgen()
+#    rdma, rdmb = qud(v0, v0)*0. # can use np.zeros((norb, norb))
+    rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb))
     cnt = nsamp
     while cnt > 0:
         v0 = vecgen()
-        tmpa, tmpb=ftlan_rdm1s1c(qud, hop, v0, T, m, Min_b, Min_m, kB)
+        tmpa, tmpb=ftlan_rdm1s1c(qud, hop, v0, T, norb, m, Min_b, Min_m, kB)
         if isinstance(tmpa, int):
             continue
         rdma += tmpa
