@@ -3,6 +3,7 @@ import numpy as np
 """
 Modules for calculating finite temperature properties of the system.
 Adeline C. Sun Mar. 28 2016 <chongs0419@gmail.com>
+Adeline C. Sun Apr. 11 Made some corrections. Added the RDM function
 """
 
 def Tri_diag(a1, b1):
@@ -11,8 +12,10 @@ def Tri_diag(a1, b1):
     return e, w
 
 
-def ftlan_E(hop, v0, T, kB=1, m=60, Min_b=10e-5, Min_m=40, norm = np.linalg.norm):
-    r"""1 step Lanczos
+def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-5, Min_m=40, kB=1, norm = np.linalg.norm):
+    r"""1 cycle Lanczos... you need to generate a random number first and then
+        pass it into this function, iteration is built outside.
+
     Calculating the energy of the system at finite temperature.
     args:
         hop     - function to calculate $H|v\rangle$
@@ -23,7 +26,8 @@ def ftlan_E(hop, v0, T, kB=1, m=60, Min_b=10e-5, Min_m=40, norm = np.linalg.norm
         Min_b   - min tolerance of b[i]
         Min_m   - min tolerance of m
     return:
-        Energy
+        if succeed: Energy
+        if b[0]=0 : 0
     """
 #   def Tri_diag(a1, b1):
 #       mat = np.diag(b1, -1) + np.diag(a1, 0) + np.diag(b1, 1)
@@ -71,17 +75,28 @@ def ftlan_E(hop, v0, T, kB=1, m=60, Min_b=10e-5, Min_m=40, norm = np.linalg.norm
     E = E/Z
     return E
 
-# not finish!                
-#def LT_lanczos_E(hop, v0, T, kB=1, m=60, nsamp=100, Min_b=10e-5, Min_m=40, norm=np.linalg.norm):
-#   r"""
-#   Calculate the energy of the system at low temperature
-#   """
-#   def Tri_diag(a1, b1):
-#       mat = np.diag(b1, -1) + np.diag(a1, 0) + np.diag(b1, 1)
-#       e, w = np.linalg.eigh(mat)
-#       return e, w
+def ftlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=30, kB=1):
+    r'''Multi-cycle Lanczos. can iterate inside, yeah! Inheritade from ftlan_E1c
+    new args:
+        vecgen - function to generate an initial vector
+        nsamp  - number of sample initial vectors
+    return:
+        Energy
+    '''
+    E = 0.
+    cnt = nsamp
+    while cnt > 0:
+        v0 = vecgen()
+        etmp = ftlan_E1c(hop, v0, T, m, Min_b, Min_m, kB)
+        if etmp==0:
+            continue
+        E += etmp
+        cnt -= 1
 
-def FT_Lanczos_1rdms(qud, hop, v0, T, kB=1, m=60, Min_b=10e-5, Min_m=30,norm=np.linalg.norm):
+    E = E/float(nsamp)
+    return E
+
+def ftlan_rdm1s1c(qud, hop, v0, T, m=60, Min_b=10e-5, Min_m=30, kB=1, norm=np.linalg.norm):
     r'''1 step lanczos
     return the 1st order reduced density matrix
     at finite temperature.
@@ -109,7 +124,7 @@ def FT_Lanczos_1rdms(qud, hop, v0, T, kB=1, m=60, Min_b=10e-5, Min_m=30,norm=np.
     v1=Hv - a[0]*v0
     b.append(norm(v1))
     if b[0] < Minb:
-        return 0
+        return 0, 0
     v1 = v1/b[0]
     Hv = hop(v1)
     a.append(v1.dot(Hv))
@@ -148,9 +163,26 @@ def FT_Lanczos_1rdms(qud, hop, v0, T, kB=1, m=60, Min_b=10e-5, Min_m=30,norm=np.
     rdmb = rdmb/Z
     return rdma, rdmb
 
+def ftlan_rdm1s(qud, hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=30, kB=1):
+    v0 = vecgen()
+    rdma, rdmb = qud(v0, v0)*0. # can use np.zeros((norb, norb))
+    cnt = nsamp
+    while cnt > 0:
+        v0 = vecgen()
+        tmpa, tmpb=ftlan_rdm1s1c(qud, hop, v0, T, m, Min_b, Min_m, kB)
+        if isinstance(tmpa, int):
+            continue
+        rdma += tmpa
+        rdmb += tmpb
+        cnt -= 1
+
+    rdma = rdma/float(nsamp)
+    rdmb = rdmb/float(nsamp)
+    return rdma, rdmb
+
+
             
 #TODO 
 # use symmetry to reduce the comutational expense
-# make the initial guess a function and pass it to the loop
-# make loops
 # the whole RDM
+# pass rdm dimension into the function
