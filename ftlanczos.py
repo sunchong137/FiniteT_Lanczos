@@ -152,28 +152,78 @@ def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=30, kB=1, nor
     eps, phi = Tri_diag(a, b)
     coef = np.exp(-beta*eps/2.)*phi[0, :]
     eps = np.exp(-beta*eps)
-    for i in range(len(eps)):
-        Z += eps[i]*phi[0, i]**2.
-    for i in range(len(eps)):
-        for j in range(len(eps)):
-            for cnt1 in range(m):
-                for cnt2 in range(m):
-                    tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
-                    tmpa = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpa
-                    tmpb = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpb
-                    rdma += tmpa
-                    rdmb += tmpb
 
-    rdma = rdma
-    rdmb = rdmb
+    lsub = len(eps)
+    for i in range(lsub):
+        Z += eps[i]*phi[0, i]**2.
+
+#   for i in range(len(eps)):
+#       for j in range(len(eps)):
+#           for cnt1 in range(m):
+#               for cnt2 in range(m):
+#                   tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
+#                   tmpa = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpa
+#                   tmpb = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpb
+
+#                   rdma += tmpa
+#                   rdmb += tmpb
+
+
+#   for cnt1 in range(lsub):
+#       tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt1,:])
+#       for i in range(lsub):
+#           for j in range(lsub):
+#               tmpa2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]/Z)*tmpa
+#               tmpb2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]/Z)*tmpb
+#               rdma += tmpa2
+#               rdmb += tmpb2
+
+#       for cnt2 in range(cnt1+1, lsub):
+#           tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
+#           for i in range(lsub):
+#               for j in range(lsub):
+#                   tmpa2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*2./Z)*tmpa
+#                   tmpb2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*2./Z)*tmpb
+#                   rdma += tmpa2
+#                   rdmb += tmpb2
+
+    for cnt1 in range(lsub):
+        tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt1,:])
+        for i in range(lsub):
+            tmpa2 = (coef[i]*coef[i]*phi[cnt1,i]*phi[cnt1,i]/Z)*tmpa
+            tmpb2 = (coef[i]*coef[i]*phi[cnt1,i]*phi[cnt1,i]/Z)*tmpb
+            rdma += tmpa2
+            rdmb += tmpb2
+            for j in range(i+1, lsub):
+                tmpa2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]*2./Z)*tmpa
+                tmpb2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]*2./Z)*tmpb
+                rdma += tmpa2
+                rdmb += tmpb2
+
+        for cnt2 in range(cnt1+1, lsub):
+            tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
+            for i in range(lsub):
+                for j in range(lsub):
+                    tmpa2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*2./Z)*tmpa
+                    tmpb2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*2./Z)*tmpb                    
+                    rdma += tmpa2
+                    rdmb += tmpb2
+
+
+
+
+
+#    rdma = rdma
+#    rdmb = rdmb
     return rdma, rdmb
 
-def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=3, nsamp=1, Min_b=10e-10, Min_m=30, kB=1):
+def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=30, nsamp=10, Min_b=10e-10, Min_m=30, kB=1):
 #    v0 = vecgen()
 #    rdma, rdmb = qud(v0, v0)*0. # can use np.zeros((norb, norb))
     rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb))
     cnt = nsamp
     while cnt > 0:
+        print cnt
         v0 = vecgen()
         tmpa, tmpb=ftlan_rdm1s1c(qud, hop, v0, T, norb, m, Min_b, Min_m, kB)
         if isinstance(tmpa, int):
@@ -189,6 +239,5 @@ def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=3, nsamp=1, Min_b=10e-10, Min_m=30,
 
             
 #TODO 
-# use symmetry to reduce the comutational expense
 # the whole RDM
-# pass rdm dimension into the function
+# function to decide M and nsamp
