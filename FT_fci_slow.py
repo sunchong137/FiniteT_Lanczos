@@ -114,7 +114,7 @@ def kernel(h1e, g2e, norb, nelec):
     hdiag = make_hdiag(h1e, g2e, norb, nelec)
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
     e, c = pyscf.lib.davidson(hop, ci0.reshape(-1), precond)
-    return e
+    return e, c
 
 def kernel_ft_old(h1e, g2e, norb, nelec, T): # finite temperature
     h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)
@@ -131,26 +131,24 @@ def kernel_ft_old(h1e, g2e, norb, nelec, T): # finite temperature
     E = ftl_e(hop, ci0.reshape(-1), T)
     return E
 
-def kernel_ft(h1e, g2e, norb, nelec, T):
+def kernel_ft(h1e, g2e, norb, nelec, T, m=50, nsamp=40):
     '''E at temperature T
     '''
     h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)
     neleca, nelecb = nelec
     na = cistring.num_strings(norb, neleca)
     nb = cistring.num_strings(norb, nelecb)
-    def vecgen(n1=na, n2=nb, turb=10e-5):
-        ci0 = turb*numpy.random.rand(n1, n2)
-        ci0[0, 0] = 1.
-#       ci0 = ci0/numpy.linalg.norm(ci0) # there's normalization in lanczos
+    def vecgen(n1=na, n2=nb):
+        ci0 = numpy.random.rand(n1, n2)
         return ci0.reshape(-1)
     def hop(c):
         hc = contract_2e(h2e, c, norb, nelec)
         return hc.reshape(-1)
 
-    E = ftlan_E(hop, vecgen, T)
+    E = ftlan_E(hop, vecgen, T, m, nsamp)
     return E
 
-def ft_rdm1s(h1e, g2e, norb, nelec, T):
+def ft_rdm1s(h1e, g2e, norb, nelec, T, m=50, nsamp=40):
     '''rdm of spin a and b at temperature T
     '''
     h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)
@@ -168,7 +166,7 @@ def ft_rdm1s(h1e, g2e, norb, nelec, T):
         dma, dmb = direct_spin1.trans_rdm1s(v1, v2, norb, nelec)
         return dma, dmb
 
-    rdma, rdmb = ftlan_rdm1s(qud, hop, vecgen, T, norb)
+    rdma, rdmb = ftlan_rdm1s(qud, hop, vecgen, T, norb, m, nsamp)
     return rdma, rdmb
 
 # dm_pq = <|p^+ q|>
@@ -249,18 +247,23 @@ if __name__ == '__main__':
     m.kernel()
     norb = m.mo_coeff.shape[1]
     nelec = mol.nelectron - 2
+    ne = mol.nelectron - 2
     nelec = (nelec//2, nelec-nelec//2)
     h1e = reduce(numpy.dot, (m.mo_coeff.T, m.get_hcore(), m.mo_coeff))
     eri = ao2mo.incore.general(m._eri, (m.mo_coeff,)*4, compact=False)
     eri = eri.reshape(norb,norb,norb,norb)
-#    e1 = kernel(h1e, eri, norb, nelec) #FCI kernel
-    rdma, rdmb = ft_rdm1s(h1e, eri, norb, nelec, 3.)
+    e1, ci0 = kernel(h1e, eri, norb, ne) #FCI kernel
+     
+#   print "T = 0, E = ", e1
+    rdma0, rdmb0 = direct_spin1.make_rdm1s(ci0, norb, nelec)
+    print "zero rdm:\n", rdma0, "\n", rdmb0
+    rdma, rdmb = ft_rdm1s(h1e, eri, norb, nelec, 4., 5, 5)
     print rdma
     print rdmb
 #    print "T = 0, E = %10.10f"%e1
 
-    e2 = kernel_ft(h1e, eri, norb, nelec, 2.)
-    print "T = 0.2, E = %10.10f"%e2
+    e2 = kernel_ft(h1e, eri, norb, nelec, 0.001, 50, 20)
+    print "E(T) = %10.10f"%e2
 '''
     f = open("data/E-T_3.dat", "w")
     f.write("%2.4f       %2.10f\n"%(0., e1))

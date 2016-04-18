@@ -12,7 +12,7 @@ def Tri_diag(a1, b1):
     return e, w
 
 
-def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-5, Min_m=40, kB=1, norm = np.linalg.norm):
+def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-5, Min_m=5, kB=1, norm = np.linalg.norm):
     r"""1 cycle Lanczos... you need to generate a random number first and then
         pass it into this function, iteration is built outside.
 
@@ -67,15 +67,31 @@ def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-5, Min_m=40, kB=1, norm = np.linalg.no
     b = np.asarray(b)
 
     eps, phi = Tri_diag(a, b)
+    l = len(eps)
+    print "old l:", l
+    d = 0
+    i = 0
+    while d*beta < 500 and i < l:
+        d = eps[i] - eps[0]
+        i+=1
+    l = i
+    print "new l:", l
+    Eo = eps[0]
+    eps = eps-Eo
+#    print -beta * eps 
+#   print eps
     exp_eps = np.exp(-beta * eps)
     for i in range(len(eps)):
         E += exp_eps[i] * eps[i] * phi[0, i]**2
         Z += exp_eps[i] * phi[0, i]**2
 
-    E = E/Z
+    E = E/Z + Eo
+#   de = eps[:, np.newaxis] - eps
+#   for i in range(l):
+#       E += eps[i] * phi[0, i]**2./np.sum(np.exp(-beta*de[:l, i])*(phi[0, :l]**2.))
     return E
 
-def ftlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=30, kB=1):
+def ftlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=5, kB=1):
     r'''Multi-cycle Lanczos. can iterate inside, yeah! Inheritade from ftlan_E1c
     new args:
         vecgen - function to generate an initial vector
@@ -97,7 +113,7 @@ def ftlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=30, kB=1):
     E = E/float(nsamp)
     return E
 
-def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=30, kB=1, norm=np.linalg.norm):
+def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=5, kB=1, norm=np.linalg.norm):
     r'''1 step lanczos
     return the 1st order reduced density matrix
     at finite temperature.
@@ -116,7 +132,7 @@ def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=30, kB=1, nor
     '''
 #    rdma, rdmb = qud(v0, v0)*0. #so we don't need norb
     beta = 1./(kB*T)
-    rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb)) #FIXME the dimension may be wrong
+    rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb)) 
     Z = 0.
     a, b = [], []
     krylov = []
@@ -150,80 +166,32 @@ def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=30, kB=1, nor
     a, b = np.asarray(a), np.asarray(b)
     krylov = np.asarray(krylov)
     eps, phi = Tri_diag(a, b)
+    eps = eps-eps[0]
     coef = np.exp(-beta*eps/2.)*phi[0, :]
     eps = np.exp(-beta*eps)
-
-    lsub = len(eps)
-    for i in range(lsub):
+    l = len(eps)
+    for i in range(l):
         Z += eps[i]*phi[0, i]**2.
+    for i in range(l):
+        for j in range(l):
+            for cnt1 in range(l):
+                for cnt2 in range(l):
+                    tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
+                    tmpa = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpa
+                    tmpb = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpb
+                    rdma += tmpa
+                    rdmb += tmpb
 
-#   for i in range(len(eps)):
-#       for j in range(len(eps)):
-#           for cnt1 in range(m):
-#               for cnt2 in range(m):
-#                   tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
-#                   tmpa = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpa
-#                   tmpb = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpb
-
-#                   rdma += tmpa
-#                   rdmb += tmpb
-
-
-#   for cnt1 in range(lsub):
-#       tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt1,:])
-#       for i in range(lsub):
-#           for j in range(lsub):
-#               tmpa2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]/Z)*tmpa
-#               tmpb2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]/Z)*tmpb
-#               rdma += tmpa2
-#               rdmb += tmpb2
-
-#       for cnt2 in range(cnt1+1, lsub):
-#           tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
-#           for i in range(lsub):
-#               for j in range(lsub):
-#                   tmpa2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*2./Z)*tmpa
-#                   tmpb2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*2./Z)*tmpb
-#                   rdma += tmpa2
-#                   rdmb += tmpb2
-
-    for cnt1 in range(lsub):
-        tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt1,:])
-        for i in range(lsub):
-            tmpa2 = (coef[i]*coef[i]*phi[cnt1,i]*phi[cnt1,i]/Z)*tmpa
-            tmpb2 = (coef[i]*coef[i]*phi[cnt1,i]*phi[cnt1,i]/Z)*tmpb
-            rdma += tmpa2
-            rdmb += tmpb2
-            for j in range(i+1, lsub):
-                tmpa2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]*2./Z)*tmpa
-                tmpb2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]*2./Z)*tmpb
-                rdma += tmpa2
-                rdmb += tmpb2
-
-        for cnt2 in range(cnt1+1, lsub):
-            tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
-            for i in range(lsub):
-                for j in range(lsub):
-                    tmpa2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*2./Z)*tmpa
-                    tmpb2 = (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]*2./Z)*tmpb                    
-                    rdma += tmpa2
-                    rdmb += tmpb2
-
-
-
-
-
-#    rdma = rdma
-#    rdmb = rdmb
+#   rdma = rdma
+#   rdmb = rdmb
     return rdma, rdmb
 
-def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=30, nsamp=10, Min_b=10e-10, Min_m=30, kB=1):
+def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=50, nsamp=20, Min_b=10e-10, Min_m=30, kB=1):
 #    v0 = vecgen()
 #    rdma, rdmb = qud(v0, v0)*0. # can use np.zeros((norb, norb))
     rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb))
     cnt = nsamp
     while cnt > 0:
-        print cnt
         v0 = vecgen()
         tmpa, tmpb=ftlan_rdm1s1c(qud, hop, v0, T, norb, m, Min_b, Min_m, kB)
         if isinstance(tmpa, int):
@@ -239,5 +207,6 @@ def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=30, nsamp=10, Min_b=10e-10, Min_m=3
 
             
 #TODO 
+# use symmetry to reduce the comutational expense
 # the whole RDM
-# function to decide M and nsamp
+# pass rdm dimension into the function
