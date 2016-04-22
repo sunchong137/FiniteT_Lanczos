@@ -7,6 +7,7 @@ import numpy
 import pyscf.lib
 from pyscf.fci import cistring
 from pyscf.fci import direct_spin1
+import ftlanczos as flan
 from ftlanczos import ftlan_E
 from ftlanczos import ftlan_rdm1s
 
@@ -116,20 +117,19 @@ def kernel(h1e, g2e, norb, nelec):
     e, c = pyscf.lib.davidson(hop, ci0.reshape(-1), precond)
     return e, c
 
-def kernel_ft_old(h1e, g2e, norb, nelec, T): # finite temperature
-    h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)
-    na = cistring.num_strings(norb, nelec//2)
-    ci0 = 10e-15*numpy.random.rand(na, na) # small deviation
-#    ci0 = numpy.zeros((na,na))
-    ci0[0,0] = 1.
-    ci0 = ci0/numpy.linalg.norm(ci0)
+#def kernel_ft_old(h1e, g2e, norb, nelec, T): # finite temperature
+#   h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)
+#   na = cistring.num_strings(norb, nelec//2)
+#   ci0 = 10e-15*numpy.random.rand(na, na) # small deviation
+#   ci0[0,0] = 1.
+#   ci0 = ci0/numpy.linalg.norm(ci0)
 
-    def hop(c):
-        hc = contract_2e(h2e, c, norb, nelec)
-        return hc.reshape(-1)
+#   def hop(c):
+#       hc = contract_2e(h2e, c, norb, nelec)
+#       return hc.reshape(-1)
 
-    E = ftl_e(hop, ci0.reshape(-1), T)
-    return E
+#   E = ftl_e(hop, ci0.reshape(-1), T)
+#   return E
 
 def kernel_ft(h1e, g2e, norb, nelec, T, m=50, nsamp=40):
     '''E at temperature T
@@ -155,9 +155,9 @@ def ft_rdm1s(h1e, g2e, norb, nelec, T, m=50, nsamp=40):
     neleca, nelecb = nelec
     na = cistring.num_strings(norb, neleca)
     nb = cistring.num_strings(norb, nelecb)
-    def vecgen(n1=na, n2=nb, turb=10e-5):
-        ci0 = turb*numpy.random.rand(n1, n2)
-        ci0[0, 0] = 1.
+    def vecgen(n1=na, n2=nb):
+        ci0 = numpy.random.rand(n1, n2)
+#        ci0[0, 0] = 1.
         return ci0.reshape(-1)
     def hop(c):
         hc = contract_2e(h2e, c, norb, nelec)
@@ -166,13 +166,18 @@ def ft_rdm1s(h1e, g2e, norb, nelec, T, m=50, nsamp=40):
         dma, dmb = direct_spin1.trans_rdm1s(v1, v2, norb, nelec)
         return dma, dmb
 
-    rdma, rdmb = ftlan_rdm1s(qud, hop, vecgen, T, norb, m, nsamp)
+#    rdma, rdmb = flan.ht_rdm1s(qud, hop, vecgen, T, norb, m, nsamp)
+    rdma, rdmb = flan.ftlan_rdm1s(qud, hop, vecgen, T, norb, m, nsamp)
     return rdma, rdmb
+
+def ft_rdm1(h1e, g2e, norb, nelec, T, m=50, nsamp=40):
+    rdma, rdmb = ft_rdm1s(h1e, g2e, norb, nelec, T, m, nsamp)
+    return rdma+rdmb
 
 # dm_pq = <|p^+ q|>
 def make_rdm1(fcivec, norb, nelec, opt=None):
-    link_index = gen_linkstr_index(range(norb), nelec//2)
-    na = num_strings(norb, nelec//2)
+    link_index = cistring.gen_linkstr_index(range(norb), nelec//2)
+    na = cistring.num_strings(norb, nelec//2)
     fcivec = fcivec.reshape(na,na)
     rdm1 = numpy.zeros((norb,norb))
     for str0, tab in enumerate(link_index):
@@ -246,8 +251,8 @@ if __name__ == '__main__':
     m = scf.RHF(mol)
     m.kernel()
     norb = m.mo_coeff.shape[1]
-    nelec = mol.nelectron - 2
-    ne = mol.nelectron - 2
+    nelec = mol.nelectron# - 2
+    ne = mol.nelectron# - 2
     nelec = (nelec//2, nelec-nelec//2)
     h1e = reduce(numpy.dot, (m.mo_coeff.T, m.get_hcore(), m.mo_coeff))
     eri = ao2mo.incore.general(m._eri, (m.mo_coeff,)*4, compact=False)
@@ -256,14 +261,16 @@ if __name__ == '__main__':
      
 #   print "T = 0, E = ", e1
     rdma0, rdmb0 = direct_spin1.make_rdm1s(ci0, norb, nelec)
+    print "*********************"
     print "zero rdm:\n", rdma0, "\n", rdmb0
-    rdma, rdmb = ft_rdm1s(h1e, eri, norb, nelec, 4., 5, 5)
-    print rdma
-    print rdmb
+    print "*********************"
+    rdma, rdmb = ft_rdm1s(h1e, eri, norb, nelec, 10., 10, 10)
+    print rdma, "\n", rdmb
+    print numpy.sum(numpy.diag(rdma))
 #    print "T = 0, E = %10.10f"%e1
 
-    e2 = kernel_ft(h1e, eri, norb, nelec, 0.001, 50, 20)
-    print "E(T) = %10.10f"%e2
+#    e2 = kernel_ft(h1e, eri, norb, nelec, 0.01, 50, 20)
+#    print "E(T) = %10.10f"%e2
 '''
     f = open("data/E-T_3.dat", "w")
     f.write("%2.4f       %2.10f\n"%(0., e1))
