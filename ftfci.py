@@ -47,7 +47,7 @@ def kernel_ft(h1e, g2e, norb, nelec, T, m=50, nsamp=40, Tmin=10e-4):
     na = cistring.num_strings(norb, neleca)
     nb = cistring.num_strings(norb, nelecb)
     def vecgen(n1=na, n2=nb):
-        ci0 = numpy.random.rand(n1, n2)
+        ci0 = numpy.random.randn(n1, n2)
         return ci0.reshape(-1)
     def hop(c):
         hc = direct_spin1.contract_2e(h2e, c, norb, nelec)
@@ -61,7 +61,7 @@ def ft_rdm1s(h1e, g2e, norb, nelec, T, m=50, nsamp=40, Tmin=10e-4):
     '''
     if T < Tmin:
        e, c = kernel(h1e, g2e, norb, nelec)
-       rdma, rdmb = direct_spin.make_rdm1s(c, norb, nelec)
+       rdma, rdmb = direct_spin1.make_rdm1s(c, norb, nelec)
        return rdma, rdmb
 
     h2e = direct_spin1.absorb_h1e(h1e, g2e, norb, nelec, .5)
@@ -73,7 +73,7 @@ def ft_rdm1s(h1e, g2e, norb, nelec, T, m=50, nsamp=40, Tmin=10e-4):
     na = cistring.num_strings(norb, neleca)
     nb = cistring.num_strings(norb, nelecb)
     def vecgen(n1=na, n2=nb):
-        ci0 = numpy.random.rand(n1, n2)
+        ci0 = numpy.random.randn(n1, n2)
 #        ci0[0, 0] = 1.
         return ci0.reshape(-1)
     def hop(c):
@@ -114,8 +114,8 @@ if __name__ == '__main__':
     m = scf.RHF(mol)
     m.kernel()
     norb = m.mo_coeff.shape[1]
-    nelec = mol.nelectron# - 2
-    ne = mol.nelectron# - 2
+    nelec = mol.nelectron - 2
+    ne = mol.nelectron - 2
     nelec = (nelec//2, nelec-nelec//2)
     h1e = reduce(numpy.dot, (m.mo_coeff.T, m.get_hcore(), m.mo_coeff))
     eri = ao2mo.incore.general(m._eri, (m.mo_coeff,)*4, compact=False)
