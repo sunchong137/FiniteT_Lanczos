@@ -12,7 +12,7 @@ def Tri_diag(a1, b1):
     return e, w
 
 
-def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-5, Min_m=5, kB=1, norm = np.linalg.norm):
+def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-10, Min_m=5, kB=1, norm = np.linalg.norm):
     r"""1 cycle Lanczos... you need to generate a random number first and then
         pass it into this function, iteration is built outside.
 
@@ -34,9 +34,8 @@ def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-5, Min_m=5, kB=1, norm = np.linalg.nor
 #       e, w = np.linalg.eigh(mat)
 #       return e, w
 
-    N = len(v0)
     beta = 1./(T * kB)
-    E, Z = 0., 0.
+    E = 0.
     a, b = [], []
     v0 = v0/norm(v0)
     Hv = hop(v0)
@@ -53,11 +52,11 @@ def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-5, Min_m=5, kB=1, norm = np.linalg.nor
     for i in range(1, m - 1):
         v2 = Hv - b[i - 1] * v0 - a[i] * v1
         b.append(norm(v2))
-        v2 = v2/b[i]
         if abs(b[i]) < Min_b:
             b.pop()
             break
 
+        v2 = v2/b[i]
         Hv = hop(v2)
         a.append(v2.dot(Hv))
         v0 = v1.copy()
@@ -68,28 +67,19 @@ def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-5, Min_m=5, kB=1, norm = np.linalg.nor
 
     eps, phi = Tri_diag(a, b)
     l = len(eps)
-    print "old l:", l
-    d = 0
-    i = 0
-    while d*beta < 500 and i < l:
-        d = eps[i] - eps[0]
-        i+=1
-    l = i
-    print "new l:", l
-    Eo = eps[0]
-    eps = eps-Eo
-#    print -beta * eps 
-#   print eps
+#    Eo = eps[0]
+#    eps = eps-Eo
     exp_eps = np.exp(-beta * eps)
-    for i in range(len(eps)):
-        E += exp_eps[i] * eps[i] * phi[0, i]**2
-        Z += exp_eps[i] * phi[0, i]**2
+    E = np.sum(exp_eps * eps * phi[0, :]**2.)
+    Z = np.sum(exp_eps * phi[0, :]**2.)
+#    for i in range(len(eps)):
+#        E += exp_eps[i] * eps[i] * phi[0, i]**2
 
-    E = E/Z + Eo
+#    E = E + Eo
 #   de = eps[:, np.newaxis] - eps
 #   for i in range(l):
 #       E += eps[i] * phi[0, i]**2./np.sum(np.exp(-beta*de[:l, i])*(phi[0, :l]**2.))
-    return E
+    return E, Z
 
 def ftlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=5, kB=1):
     r'''Multi-cycle Lanczos. can iterate inside, yeah! Inheritade from ftlan_E1c
@@ -99,19 +89,94 @@ def ftlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=5, kB=1):
     return:
         Energy
     '''
-    E = 0.
+    beta = 1./(kB*T)
     cnt = nsamp
+    E = 0.
+    Z = 0.
     while cnt > 0:
         v0 = vecgen()
-        etmp = ftlan_E1c(hop, v0, T, m, Min_b, Min_m, kB)
+        etmp, ztmp = ftlan_E1c(hop, v0, T, m, Min_b, Min_m, kB)
 #       print cnt, etmp
         if etmp==0:
             continue
         E += etmp
+        Z += ztmp
         cnt -= 1
 
-    E = E/float(nsamp)
-    return E
+    e = E/Z
+    return e
+
+#def ltlan_E1c(hop, r0, T, m=60, Min_b=10e-5, Min_m=5,kB=1, norm=np.linalg.norm):
+#    beta = 1./(T*kB)
+#    E, Z = 0., 0.,
+#    a, b = [], []
+#    krylov = []
+#    hvspace = []
+#    v0 = (r0/norm(r0)).copy()
+#    Hv = hop(v0)
+#    hvspace.append(Hv.copy())
+#    a.append(v0.dot(Hv))
+#    v1 = Hv - a[0]*v0
+#    b.append(norm(v1))
+#    if b[0] < Min_b:
+#        return 0
+#    v1 = v1/b[0]
+#    krylov.append(v0.copy())
+#    krylov.append(v1.copy())
+#    Hv = hop(v1)
+#    hvspace.append(Hv.copy())
+#    a.append(v1.dot(Hv))
+#
+#    for i in range(1, m-1):
+#        v2 = Hv - b[i - 1] * v0 - a[i] * v1
+#        b.append(norm(v2))
+#        if abs(b[i]) < Min_b:
+#            b.pop()
+#            break
+#        v2 = v2/b[i]
+#        krylov.append(v2.copy())
+#        Hv = hop(v2)
+#        hvspace.append(Hv.copy())
+#        a.append(v2.dot(Hv))
+#        v0 = v1.copy()
+#        v1 = v2.copy()
+#
+#    a = np.asarray(a)
+#    b = np.asarray(b)
+#    krylov = np.asarray(krylov)
+#    hvspace = np.asarray(hvspace)
+#
+#    eps, phi = Tri_diag(a, b)
+#    l = len(eps)
+#    Eo = eps[0]
+#    eps = (eps - Eo).copy()
+#    exp_eps = np.exp(-beta * eps)
+#    exp_half = np.exp(-beta * eps/2.)
+#    for i in range(l):
+#        Z += exp_eps[i] * phi[0, i]**2
+#    for cnt1 in range(l):
+#        for cnt2 in range(l):
+#            inner = krylov[cnt1, :].dot(hvspace[cnt2, :])    
+#            for i in range(l):
+#                for j in range(l):
+#                    E += phi[0, i]*phi[0, j] * exp_half[i]*exp_half[j]*inner*phi[cnt1, i] * phi[cnt2, j]
+#
+#    E = E/Z + Eo
+#    return E
+ 
+#def ltlan_E(hop, vecgen, T, m=60, nsamp=30, Min_b=10e-5, Min_m=5, kB=1):
+#    E = 0.
+#    cnt = nsamp
+#    while cnt > 0:
+#        v0 = vecgen()
+#        etmp = ltlan_E1c(hop, v0, T, m, Min_b, Min_m, kB)
+#        if etmp==0:
+#            continue
+#        E += etmp
+#        cnt -= 1
+#
+#    E = E/float(nsamp)
+#    return E
 
 def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=5, kB=1, norm=np.linalg.norm):
     r'''1 step lanczos
@@ -170,20 +235,19 @@ def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=5, kB=1, norm
     coef = np.exp(-beta*eps/2.)*phi[0, :]
     eps = np.exp(-beta*eps)
     l = len(eps)
-    for kk in range(l):
-        Z += eps[kk]*phi[0, kk]**2.
+    Z = np.sum(eps*phi[0, :]**2.)
     for cnt1 in range(l):
         tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt1,:])
         for i in range(l):
             for j in range(l):
-                rdma += (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]/Z)*tmpa
-                rdmb += (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j]/Z)*tmpb
+                rdma += (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j])*tmpa
+                rdmb += (coef[i]*coef[j]*phi[cnt1,i]*phi[cnt1,j])*tmpb
         for cnt2 in range(cnt1+1, l):
             tmpa, tmpb = qud(krylov[cnt1, :], krylov[cnt2,:])
             for i in range(l):
                 for j in range(l):
-                    rdma += 2.*(coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpa
-                    rdmb += 2.*(coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j]/Z)*tmpb
+                    rdma += 2.*(coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j])*tmpa
+                    rdmb += 2.*(coef[i]*coef[j]*phi[cnt1,i]*phi[cnt2,j])*tmpb
 
 #   for i in range(l):
 #       for j in range(l):
@@ -195,24 +259,26 @@ def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=5, kB=1, norm
 #                   rdma += tmpa
 #                   rdmb += tmpb
 
-    return rdma, rdmb
+    return rdma, rdmb, z
 
 def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=50, nsamp=20, Min_b=10e-10, Min_m=30, kB=1):
 #    v0 = vecgen()
 #    rdma, rdmb = qud(v0, v0)*0. # can use np.zeros((norb, norb))
     rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb))
     cnt = nsamp
+    Z = 0.
     while cnt > 0:
         v0 = vecgen()
-        tmpa, tmpb=ftlan_rdm1s1c(qud, hop, v0, T, norb, m, Min_b, Min_m, kB)
+        tmpa, tmpb, tmpz=ftlan_rdm1s1c(qud, hop, v0, T, norb, m, Min_b, Min_m, kB)
         if isinstance(tmpa, int):
             continue
         rdma += tmpa
         rdmb += tmpb
+        Z += tmpz
         cnt -= 1
 
-    rdma = rdma/float(nsamp)
-    rdmb = rdmb/float(nsamp)
+    rdma = rdma/Z
+    rdmb = rdmb/Z
     return rdma, rdmb
 
 
@@ -296,7 +362,3 @@ def ht_rdm1s(qud, hop, vecgen, T, norb, m=50, nsamp=20, Min_b=10e-10, Min_m=30, 
     rdma = rdma/float(nsamp)
     rdmb = rdmb/float(nsamp)
     return rdma, rdmb
-
-#TODO 
-# the whole RDM
-# pass rdm dimension into the function
