@@ -9,7 +9,7 @@ import pyscf.lib
 from pyscf.fci import cistring
 from pyscf.fci import direct_spin1
 import ftlanczos as flan
-
+from smpl import smpl_hilbert as ftsmpl
 
 def kernel(h1e, g2e, norb, nelec):
 
@@ -31,7 +31,7 @@ def kernel(h1e, g2e, norb, nelec):
     e, c = pyscf.lib.davidson(hop, ci0.reshape(-1), precond)
     return e, c
 
-def kernel_ft(h1e, g2e, norb, nelec, T, m=50, nsamp=40, Tmin=10e-4):
+def kernel_ft(h1e, g2e, norb, nelec, T, m=50, nsamp=100, Tmin=10e-4):
     '''E at temperature T
     '''
     if T < Tmin:
@@ -52,10 +52,31 @@ def kernel_ft(h1e, g2e, norb, nelec, T, m=50, nsamp=40, Tmin=10e-4):
     def hop(c):
         hc = direct_spin1.contract_2e(h2e, c, norb, nelec)
         return hc.reshape(-1)
-
     E = flan.ftlan_E(hop, vecgen, T, m, nsamp)
     return E
 
+def kernel_ft_smpl(h1e, g2e, norb, nelec, T, vecgen = 0, m=50, nsmpl = 250, Tmin=10e-4):
+    if T < Tmin:
+        e, c = kernel(h1e, g2e, norb, nelec)
+        return e
+    h2e = direct_spin1.absorb_h1e(h1e, g2e, norb, nelec, .5)
+    if isinstance(nelec, (int, numpy.integer)):
+        nelecb = nelec//2
+        neleca = nelec - nelecb
+    else:
+        neleca, nelecb = nelec
+
+    na = cistring.num_strings(norb, neleca)
+    nb = cistring.num_strings(norb, nelecb)
+    ci0 = numpy.random.randn(na, nb)
+    def hop(c):
+        hc = direct_spin1.contract_2e(h2e, c, norb, nelec)
+        return hc.reshape(-1)
+
+    E = ftsmpl(hop, ci0, T, flan.ftlan_E1c, nsamp = nsmpl, genci=vecgen)
+    return E
+
+   
 def ft_rdm1s(h1e, g2e, norb, nelec, T, m=50, nsamp=40, Tmin=10e-4):
     '''rdm of spin a and b at temperature T
     '''
@@ -134,8 +155,10 @@ if __name__ == '__main__':
 #    print numpy.sum(numpy.diag(rdma))
 #    print "T = 0, E = %10.10f"%e1
     
-    e2 = kernel_ft(h1e, eri, norb, nelec, 0.000001, 40, 20)
+    e2 = kernel_ft(h1e, eri, norb, nelec, 0.1, 40, 20)
     print "E(T) = %10.10f"%e2
+    e3 = kernel_ft_smpl(h1e, eri, norb, nelec, 0.1, )
+    print "E(T)_smpl = %10.10f"%e3 
 '''
     f = open("data/E-T_3.dat", "w")
     f.write("%2.4f       %2.10f\n"%(0., e1))
