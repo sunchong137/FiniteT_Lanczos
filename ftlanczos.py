@@ -12,7 +12,7 @@ def Tri_diag(a1, b1):
     return e, w
 
 
-def ftlan_E1c(hop, v0, T, m=60, Min_b=10e-10, Min_m=5, kB=1, norm = np.linalg.norm):
+def ftlan_E1c(hop, v0, T, m=50, Min_b=10e-10, Min_m=5, kB=1, norm = np.linalg.norm):
     r"""1 cycle Lanczos... you need to generate a random number first and then
         pass it into this function, iteration is built outside.
 
@@ -259,7 +259,7 @@ def ftlan_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=5, kB=1, norm
 #                   rdma += tmpa
 #                   rdmb += tmpb
 
-    return rdma, rdmb, z
+    return rdma, rdmb, Z
 
 def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=50, nsamp=20, Min_b=10e-10, Min_m=30, kB=1):
 #    v0 = vecgen()
@@ -282,83 +282,83 @@ def ftlan_rdm1s(qud, hop, vecgen, T, norb, m=50, nsamp=20, Min_b=10e-10, Min_m=3
     return rdma, rdmb
 
 
-def ht_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=5, kB=1, norm=np.linalg.norm):
-    beta = 1./(kB*T)
-    rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb))
-    Z = 0.
-    a, b = [], []
-    D1, D2 = [], []
-    v0 = v0/norm(v0)
-    vr = v0.copy()
-    d1, d2 = qud(v0, vr)
-    D1.append(d1)
-    D2.append(d2)
-    Hv = hop(v0)
-    a.append(v0.dot(Hv))
-    v1=Hv - a[0]*v0
-    b.append(norm(v1))
-    if b[0] < Min_b:
-        return 0, 0
-    v1 = v1/b[0]
-    d1, d2 = qud(v1, vr)
-    D1.append(d1)
-    D2.append(d2)
-    Hv = hop(v1)
-    a.append(v1.dot(Hv))
-    for i in range(1, int(m-1)):
-        v2 = Hv - b[i-1]*v0-a[i]*v1
-        b.append(norm(v2))
-        if abs(b[i])<Min_b:
-            if i < Min_m:
-                return 0
-            b.pop()
-            break
-        v2 = v2/b[i]
-        d1, d2 = qud(v2, vr)
-        D1.append(d1)
-        D2.append(d2)
-        Hv = hop(v2)
-        a.append(v2.dot(Hv))
-        v0 = v1.copy()
-        v1 = v2.copy()
-    
-    a, b = np.asarray(a), np.asarray(b)
-    D1 = np.asarray(D1)
-    D2 = np.asarray(D2)
-    eps, phi = Tri_diag(a, b)
-    eps = eps-eps[0]
-    coef = np.exp(-beta*eps)*phi[0, :]
-    eps = np.exp(-beta*eps)
-    l = len(eps)
-    for i in range(l):
-        Z += eps[i]*phi[0, i]**2.
-    coef = coef/Z
-    for j in range(l):
-        tmpa, tmpb = np.zeros((norb, norb)), np.zeros((norb, norb))
-        for k in range(l):
-            tmpa += phi[k, j]*D1[k]
-            tmpb += phi[k, j]*D2[k]
-        rdma += coef[j]* tmpa
-        rdmb += coef[j]* tmpb
+#def ht_rdm1s1c(qud, hop, v0, T, norb, m=60, Min_b=10e-10, Min_m=5, kB=1, norm=np.linalg.norm):
+#   beta = 1./(kB*T)
+#   rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb))
+#   Z = 0.
+#   a, b = [], []
+#   D1, D2 = [], []
+#   v0 = v0/norm(v0)
+#   vr = v0.copy()
+#   d1, d2 = qud(v0, vr)
+#   D1.append(d1)
+#   D2.append(d2)
+#   Hv = hop(v0)
+#   a.append(v0.dot(Hv))
+#   v1=Hv - a[0]*v0
+#   b.append(norm(v1))
+#   if b[0] < Min_b:
+#       return 0, 0
+#   v1 = v1/b[0]
+#   d1, d2 = qud(v1, vr)
+#   D1.append(d1)
+#   D2.append(d2)
+#   Hv = hop(v1)
+#   a.append(v1.dot(Hv))
+#   for i in range(1, int(m-1)):
+#       v2 = Hv - b[i-1]*v0-a[i]*v1
+#       b.append(norm(v2))
+#       if abs(b[i])<Min_b:
+#           if i < Min_m:
+#               return 0
+#           b.pop()
+#           break
+#       v2 = v2/b[i]
+#       d1, d2 = qud(v2, vr)
+#       D1.append(d1)
+#       D2.append(d2)
+#       Hv = hop(v2)
+#       a.append(v2.dot(Hv))
+#       v0 = v1.copy()
+#       v1 = v2.copy()
+#   
+#   a, b = np.asarray(a), np.asarray(b)
+#   D1 = np.asarray(D1)
+#   D2 = np.asarray(D2)
+#   eps, phi = Tri_diag(a, b)
+#   eps = eps-eps[0]
+#   coef = np.exp(-beta*eps)*phi[0, :]
+#   eps = np.exp(-beta*eps)
+#   l = len(eps)
+#   for i in range(l):
+#       Z += eps[i]*phi[0, i]**2.
+#   coef = coef/Z
+#   for j in range(l):
+#       tmpa, tmpb = np.zeros((norb, norb)), np.zeros((norb, norb))
+#       for k in range(l):
+#           tmpa += phi[k, j]*D1[k]
+#           tmpb += phi[k, j]*D2[k]
+#       rdma += coef[j]* tmpa
+#       rdmb += coef[j]* tmpb
 
 #   rdma = rdma
 #   rdmb = rdmb
-    return rdma, rdmb
+#   return rdma, rdmb
 
-def ht_rdm1s(qud, hop, vecgen, T, norb, m=50, nsamp=20, Min_b=10e-10, Min_m=30, kB=1):
+#def ht_rdm1s(qud, hop, vecgen, T, norb, m=50, nsamp=20, Min_b=10e-10, Min_m=30, kB=1):
 #    v0 = vecgen()
 #    rdma, rdmb = qud(v0, v0)*0. # can use np.zeros((norb, norb))
-    rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb))
-    cnt = nsamp
-    while cnt > 0:
-        v0 = vecgen()
-        tmpa, tmpb=ht_rdm1s1c(qud, hop, v0, T, norb, m, Min_b, Min_m, kB)
-        if isinstance(tmpa, int):
-            continue
-        rdma += tmpa
-        rdmb += tmpb
-        cnt -= 1
+#   rdma, rdmb = np.zeros((norb, norb)), np.zeros((norb, norb))
+#   cnt = nsamp
+#   while cnt > 0:
+#       v0 = vecgen()
+#       tmpa, tmpb=ht_rdm1s1c(qud, hop, v0, T, norb, m, Min_b, Min_m, kB)
+#       if isinstance(tmpa, int):
+#           continue
+#       rdma += tmpa
+#       rdmb += tmpb
+#       cnt -= 1
 
-    rdma = rdma/float(nsamp)
-    rdmb = rdmb/float(nsamp)
-    return rdma, rdmb
+#   rdma = rdma/float(nsamp)
+#   rdmb = rdmb/float(nsamp)
+#   return rdma, rdmb

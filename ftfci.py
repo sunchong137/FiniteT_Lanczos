@@ -55,10 +55,11 @@ def kernel_ft(h1e, g2e, norb, nelec, T, m=50, nsamp=100, Tmin=10e-4):
     E = flan.ftlan_E(hop, vecgen, T, m, nsamp)
     return E
 
-def kernel_ft_smpl(h1e, g2e, norb, nelec, T, vecgen = 0, m=50, nsmpl = 250, Tmin=10e-4):
+def kernel_ft_smpl(h1e, g2e, norb, nelec, T, vecgen = 0, m=50, nsmpl = 250, nblk = 10, Tmin=10e-4, nrotation = 200):
     if T < Tmin:
         e, c = kernel(h1e, g2e, norb, nelec)
         return e
+    disp = numpy.exp(T) * 0.1 # displacement
     h2e = direct_spin1.absorb_h1e(h1e, g2e, norb, nelec, .5)
     if isinstance(nelec, (int, numpy.integer)):
         nelecb = nelec//2
@@ -73,8 +74,9 @@ def kernel_ft_smpl(h1e, g2e, norb, nelec, T, vecgen = 0, m=50, nsmpl = 250, Tmin
         hc = direct_spin1.contract_2e(h2e, c, norb, nelec)
         return hc.reshape(-1)
 
-    E = ftsmpl(hop, ci0, T, flan.ftlan_E1c, nsamp = nsmpl, genci=vecgen)
-    return E
+    E, dev, ar = ftsmpl(hop, ci0, T, flan.ftlan_E1c, nsamp = nsmpl, dr = disp, genci=vecgen, nblock = nblk, nrot = nrotation)
+    # ar is the acceptance ratio
+    return E, dev, ar
 
    
 def ft_rdm1s(h1e, g2e, norb, nelec, T, m=50, nsamp=40, Tmin=10e-4):
