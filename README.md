@@ -1,2 +1,4 @@
-# FiniteT_Lanczos
-Lanczos algorithm to evaluate canonical ensemble average
+Finite-temperature Lanczos algorithm
+====================================
+
+Lanczos algorithm to evaluate canonical ensemble average.
